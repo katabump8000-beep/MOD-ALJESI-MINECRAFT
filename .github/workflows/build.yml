@@ -1,4 +1,4 @@
-name: Build Minecraft Mod
+name: Build Minecraft Bedrock Addon
 
 on: [push, workflow_dispatch]
 
@@ -9,80 +9,103 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.5'
-
-      - name: Extract ZIP Project
+      - name: Create Bedrock Addon Structure
         run: |
-          echo "📦 محتويات الـ repo قبل الفك:"
-          ls -la
+          echo "📂 جاري إنتاج بنية حزمة Bedrock Add-on..."
           
-          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" -type f | head -n 1)
-          
-          if [ -z "$ZIP_FILE" ]; then
-            echo "❌ ما لقيت ملف zip!"
-            exit 1
-          fi
-          
-          echo "📂 عم أفك: $ZIP_FILE"
-          unzip -o "$ZIP_FILE" -d _project
-          
-          BUILD_FILE=$(find _project -name "build.gradle" -type f | head -n 1)
-          
-          if [ -z "$BUILD_FILE" ]; then
-            echo "❌ ما لقيت build.gradle داخل الـ zip!"
-            exit 1
-          fi
-          
-          PROJECT_DIR=$(dirname "$BUILD_FILE")
-          echo "📁 مجلد المشروع: $PROJECT_DIR"
-          
-          shopt -s dotglob
-          cp -r "$PROJECT_DIR"/* .
-          shopt -u dotglob
-          rm -rf _project
-          rm -f "$ZIP_FILE"
-          
-          echo "✅ تم الفك بنجاح."
+          # إنشاء مجلدات الباكج (Behavior Pack و Resource Pack)
+          mkdir -p bedrock_addon/behavior_pack/entities
+          mkdir -p bedrock_addon/resource_pack/entity
+          mkdir -p bedrock_addon/resource_pack/textures/entity
 
-      - name: Fix Forge settings.gradle
-        run: |
-          if [ -f "settings.gradle" ]; then
-            sed -i 's/FAIL_ON_PROJECT_REPOS/PREFER_PROJECT/g' settings.gradle
-          fi
+          # 1. ملف مانفست حزمة السلوك (Behavior Pack Manifest)
+          cat << 'EOF' > bedrock_addon/behavior_pack/manifest.json
+          {
+            "format_version": 2,
+            "header": {
+              "description": "Custom Gameplay World Dynamics Behavior Pack",
+              "name": "CustomGameplay BP",
+              "uuid": "$(uuidgen)",
+              "version": [1, 0, 0],
+              "min_engine_version": [1, 20, 0]
+            },
+            "modules": [
+              {
+                "description": "Behavior Module",
+                "type": "data",
+                "uuid": "$(uuidgen)",
+                "version": [1, 0, 0]
+              }
+            ]
+          }
+          EOF
 
-      - name: Auto-Fix Missing Imports in BanditEntity
-        run: |
-          # البحث التلقائي عن ملف BanditEntity.java وإضافة الاستيرادات الناقصة
-          TARGET_FILE=$(find . -name "BanditEntity.java" | head -n 1)
-          if [ -n "$TARGET_FILE" ]; then
-            echo "🔧 تم العثور على الملف وجاري إصلاح الـ Imports: $TARGET_FILE"
-            sed -i '/package /a import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;\nimport net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;' "$TARGET_FILE"
-          else
-            echo "⚠️ تنبيه: لم يتم العثور على الملف، سيتم متابعة البناء بشكل طبيعي."
-          fi
+          # 2. ملف مانفست حزمة الموارد (Resource Pack Manifest)
+          cat << 'EOF' > bedrock_addon/resource_pack/manifest.json
+          {
+            "format_version": 2,
+            "header": {
+              "description": "Custom Gameplay World Dynamics Resource Pack",
+              "name": "CustomGameplay RP",
+              "uuid": "$(uuidgen)",
+              "version": [1, 0, 0],
+              "min_engine_version": [1, 20, 0]
+            },
+            "modules": [
+              {
+                "description": "Resource Module",
+                "type": "resources",
+                "uuid": "$(uuidgen)",
+                "version": [1, 0, 0]
+              }
+            ]
+          }
+          EOF
 
-      - name: Ensure Gradle Wrapper and Build
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "⚙️ توليد ملف gradlew..."
-            gradle wrapper --gradle-version 8.5
-          fi
-          chmod +x gradlew
-          ./gradlew build --no-daemon --stacktrace
+          # 3. إعداد الكائن (Bandit Entity) لنسخة البيدروك
+          cat << 'EOF' > bedrock_addon/behavior_pack/entities/bandit.json
+          {
+            "format_version": "1.20.0",
+            "minecraft:entity": {
+              "description": {
+                "identifier": "custom:bandit",
+                "is_spawnable": true,
+                "is_summonable": true,
+                "is_experimental": false
+              },
+              "components": {
+                "minecraft:health": {
+                  "value": 20,
+                  "max": 20
+                },
+                "minecraft:movement": {
+                  "value": 0.25
+                },
+                "minecraft:attack": {
+                  "damage": 3
+                },
+                "minecraft:type_family": {
+                  "family": ["bandit", "monster"]
+                }
+              }
+            }
+          }
+          EOF
 
-      - name: Upload JAR
-        if: always()
+          # البحث عن أي صور أو أيقونات مضافة مسبقاً ووضعها في الموارد
+          find . -name "bandit.png" -exec cp {} bedrock_addon/resource_pack/textures/entity/ \; || true
+
+          # ضغط المجلدات بصيغة .mcaddon
+          cd bedrock_addon
+          zip -r ../customgameplayworlddynamics.mcaddon *
+          cd ..
+          
+          mkdir -p build/libs
+          mv customgameplayworlddynamics.mcaddon build/libs/
+          echo "✅ تم إنشاء الـ Addon بنجاح!"
+
+      - name: Upload Addon Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: minecraft-mod-jar
-          path: build/libs/*.jar
-          if-no-files-found: warn
+          name: minecraft-bedrock-addon
+          path: build/libs/*.mcaddon
