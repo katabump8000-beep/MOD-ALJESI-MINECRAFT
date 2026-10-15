@@ -15,24 +15,22 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Extract All Files and Flatten Structure
+      - name: Set up Gradle 8.5
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Extract All ZIP Files
         run: |
-          echo "=== الملفات الموجودة في الجذر ==="
-          ls -la
-          
-          # فك ضغط جميع ملفات الـ ZIP الموجودة في المستودع
           for zipfile in *.zip; do
             if [ -f "$zipfile" ]; then
-              echo "جاري فك ضغط: $zipfile"
               unzip -o "$zipfile" -d extracted_temp
             fi
           done
           
-          # نقل جميع الملفات والمجلدات إلى الجذر الرئيسي للمستودع
           if [ -d "extracted_temp" ]; then
             BUILD_PATH=$(find extracted_temp -name "build.gradle" -exec dirname {} \; | head -n 1)
             if [ -n "$BUILD_PATH" ]; then
-              echo "تم العثور على مجلد المشروع في: $BUILD_PATH"
               shopt -s dotglob
               cp -r "$BUILD_PATH"/* .
               shopt -u dotglob
@@ -41,20 +39,16 @@ jobs:
             fi
             rm -rf extracted_temp
           fi
-          
-          echo "=== الملفات بعد الفك والتنظيم ==="
-          ls -la
 
-      - name: Grant execute permission for gradlew
+      - name: Generate Gradle Wrapper if missing
         run: |
-          if [ -f "gradlew" ]; then
-            chmod +x gradlew
-            echo "تم منح صلاحيات التنفيذ لـ gradlew بنجاح"
-          else
-            echo "تحذير: لم يتم العثور على gradlew"
+          if [ ! -f "gradlew" ]; then
+            echo "Generating Gradle Wrapper..."
+            gradle wrapper --gradle-version 8.5
           fi
+          chmod +x gradlew
 
-      - name: Build with Project Gradle Wrapper
+      - name: Build Mod with Gradle Wrapper
         run: ./gradlew build --no-daemon
 
       - name: Upload Build Artifact
