@@ -39,8 +39,6 @@ jobs:
           
           if [ -z "$BUILD_FILE" ]; then
             echo "❌ ما لقيت build.gradle داخل الـ zip!"
-            echo "المحتويات:"
-            find _project -type f | head -50
             exit 1
           fi
           
@@ -51,16 +49,25 @@ jobs:
           cp -r "$PROJECT_DIR"/* .
           shopt -u dotglob
           rm -rf _project
+          rm -f "$ZIP_FILE"
           
-          echo "✅ تم الفك بنجاح. محتويات الجذر:"
-          ls -la
+          echo "✅ تم الفك بنجاح."
 
-      - name: Fix Forge settings.gradle (if needed)
+      - name: Fix Forge settings.gradle
         run: |
           if [ -f "settings.gradle" ]; then
             sed -i 's/FAIL_ON_PROJECT_REPOS/PREFER_PROJECT/g' settings.gradle
-            echo "settings.gradle بعد التعديل:"
-            cat settings.gradle
+          fi
+
+      - name: Auto-Fix Missing Imports in BanditEntity
+        run: |
+          # البحث التلقائي عن ملف BanditEntity.java وإضافة الاستيرادات الناقصة
+          TARGET_FILE=$(find . -name "BanditEntity.java" | head -n 1)
+          if [ -n "$TARGET_FILE" ]; then
+            echo "🔧 تم العثور على الملف وجاري إصلاح الـ Imports: $TARGET_FILE"
+            sed -i '/package /a import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;\nimport net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;' "$TARGET_FILE"
+          else
+            echo "⚠️ تنبيه: لم يتم العثور على الملف، سيتم متابعة البناء بشكل طبيعي."
           fi
 
       - name: Ensure Gradle Wrapper and Build
@@ -76,6 +83,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mod-jar
+          name: minecraft-mod-jar
           path: build/libs/*.jar
           if-no-files-found: warn
