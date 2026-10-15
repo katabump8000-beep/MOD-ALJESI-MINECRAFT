@@ -20,7 +20,7 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      - name: Extract All ZIP Files
+      - name: Extract Project ZIP
         run: |
           for zipfile in *.zip; do
             if [ -f "$zipfile" ]; then
@@ -40,17 +40,25 @@ jobs:
             rm -rf extracted_temp
           fi
 
-      - name: Generate Gradle Wrapper if missing
+      - name: Fix Forge Repository Conflict
+        run: |
+          # إصلاح تعارض المستودعات الخاص بـ Forge في ملف settings.gradle
+          if [ -f "settings.gradle" ]; then
+            sed -i '/FAIL_ON_PROJECT_REPOS/d' settings.gradle
+            sed -i 's/repositoriesMode.set.*/repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)/g' settings.gradle || true
+            echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_PROJECT) }" >> settings.gradle || true
+          fi
+
+      - name: Generate Gradle Wrapper
         run: |
           if [ ! -f "gradlew" ]; then
-            echo "Generating Gradle Wrapper..."
             gradle wrapper --gradle-version 8.5
           fi
           chmod +x gradlew
 
-      - name: Build Mod with Gradle Wrapper
-        run: ./gradlew build --no-daemon
-
+      - name: Build Mod
+        run: ./gradlew build --no-daemon -Dorg.gradle.zoneinfo=UTC
+        
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
