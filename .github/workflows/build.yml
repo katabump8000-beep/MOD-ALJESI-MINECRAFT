@@ -15,52 +15,70 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Gradle 8.5
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
 
-      - name: Extract Project ZIP
+      - name: Extract ZIP Project
         run: |
-          for zipfile in *.zip; do
-            if [ -f "$zipfile" ]; then
-              unzip -o "$zipfile" -d extracted_temp
-            fi
-          done
+          echo "📦 محتويات الـ repo قبل الفك:"
+          ls -la
           
-          if [ -d "extracted_temp" ]; then
-            BUILD_PATH=$(find extracted_temp -name "build.gradle" -exec dirname {} \; | head -n 1)
-            if [ -n "$BUILD_PATH" ]; then
-              shopt -s dotglob
-              cp -r "$BUILD_PATH"/* .
-              shopt -u dotglob
-            else
-              cp -r extracted_temp/* .
-            fi
-            rm -rf extracted_temp
+          # ابحث عن أي ملف zip في الجذر
+          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" -type f | head -n 1)
+          
+          if [ -z "$ZIP_FILE" ]; then
+            echo "❌ ما لقيت ملف zip!"
+            exit 1
           fi
+          
+          echo "📂 عم أفك: $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d _project
+          
+          # ابحث عن build.gradle داخل المجلد المستخرج
+          BUILD_FILE=$(find _project -name "build.gradle" -type f | head -n 1)
+          
+          if [ -z "$BUILD_FILE" ]; then
+            echo "❌ ما لقيت build.gradle داخل الـ zip!"
+            echo "المحتويات:"
+            find _project -type f | head -50
+            exit 1
+          fi
+          
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "📁 مجلد المشروع: $PROJECT_DIR"
+          
+          # انقل كل الملفات (بما فيها المخفية) للجذر
+          shopt -s dotglob
+          mv "$PROJECT_DIR"/* .
+          shopt -u dotglob
+          rm -rf _project
+          
+          # احذف الـ zip الأصلي (مش ضروري بس نظافة)
+          rm -f "$ZIP_FILE"
+          
+          echo "✅ تم الفك بنجاح. محتويات الجذر:"
+          ls -la
 
-      - name: Fix Forge Repository Conflict
+      - name: Fix Forge settings.gradle (if needed)
         run: |
-          # إصلاح تعارض المستودعات الخاص بـ Forge في ملف settings.gradle
           if [ -f "settings.gradle" ]; then
-            sed -i '/FAIL_ON_PROJECT_REPOS/d' settings.gradle
-            sed -i 's/repositoriesMode.set.*/repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)/g' settings.gradle || true
-            echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_PROJECT) }" >> settings.gradle || true
+            # إصلاح بسيط: استبدل FAIL_ON_PROJECT_REPOS فقط
+            sed -i 's/FAIL_ON_PROJECT_REPOS/PREFER_PROJECT/g' settings.gradle
+            echo "settings.gradle بعد التعديل:"
+            cat settings.gradle
           fi
-
-      - name: Generate Gradle Wrapper
-        run: |
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper --gradle-version 8.5
-          fi
-          chmod +x gradlew
 
       - name: Build Mod
-        run: ./gradlew build --no-daemon -Dorg.gradle.zoneinfo=UTC
-        
-      - name: Upload Build Artifact
+        run: |
+          chmod +x gradlew
+          ./gradlew build --no-daemon --stacktrace
+
+      - name: Upload JAR
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: minecraft-mod-jar
+          name: mod-jar
           path: build/libs/*.jar
+          if-no-files-found: warn
