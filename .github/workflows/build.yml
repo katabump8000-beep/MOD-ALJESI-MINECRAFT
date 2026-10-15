@@ -25,7 +25,6 @@ jobs:
           echo "📦 محتويات الـ repo قبل الفك:"
           ls -la
           
-          # ابحث عن أي ملف zip في الجذر
           ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" -type f | head -n 1)
           
           if [ -z "$ZIP_FILE" ]; then
@@ -36,7 +35,6 @@ jobs:
           echo "📂 عم أفك: $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d _project
           
-          # ابحث عن build.gradle داخل المجلد المستخرج
           BUILD_FILE=$(find _project -name "build.gradle" -type f | head -n 1)
           
           if [ -z "$BUILD_FILE" ]; then
@@ -49,14 +47,10 @@ jobs:
           PROJECT_DIR=$(dirname "$BUILD_FILE")
           echo "📁 مجلد المشروع: $PROJECT_DIR"
           
-          # انقل كل الملفات (بما فيها المخفية) للجذر
           shopt -s dotglob
-          mv "$PROJECT_DIR"/* .
+          cp -r "$PROJECT_DIR"/* .
           shopt -u dotglob
           rm -rf _project
-          
-          # احذف الـ zip الأصلي (مش ضروري بس نظافة)
-          rm -f "$ZIP_FILE"
           
           echo "✅ تم الفك بنجاح. محتويات الجذر:"
           ls -la
@@ -64,14 +58,17 @@ jobs:
       - name: Fix Forge settings.gradle (if needed)
         run: |
           if [ -f "settings.gradle" ]; then
-            # إصلاح بسيط: استبدل FAIL_ON_PROJECT_REPOS فقط
             sed -i 's/FAIL_ON_PROJECT_REPOS/PREFER_PROJECT/g' settings.gradle
             echo "settings.gradle بعد التعديل:"
             cat settings.gradle
           fi
 
-      - name: Build Mod
+      - name: Ensure Gradle Wrapper and Build
         run: |
+          if [ ! -f "gradlew" ]; then
+            echo "⚙️ توليد ملف gradlew..."
+            gradle wrapper --gradle-version 8.5
+          fi
           chmod +x gradlew
           ./gradlew build --no-daemon --stacktrace
 
