@@ -1,1 +1,39 @@
+name: Build Minecraft Mod
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Extract Project ZIP
+        run: |
+          unzip CustomGameplayWorldDynamics-Forge-1.20.1.zip -d extracted_project
+          shopt -s dotglob
+          mv extracted_project/* .
+          rm -rf extracted_project CustomGameplayWorldDynamics-Forge-1.20.1.zip
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-mod-jar
+          path: build/libs/*.jar
 
