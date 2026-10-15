@@ -15,25 +15,28 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Validate Gradle wrapper
-        uses: gradle/actions/setup-gradle@v3
-
       - name: Extract Project ZIP
         run: |
-          unzip CustomGameplayWorldDynamics-Forge-1.20.1.zip -d extracted_project
-          shopt -s dotglob
-          mv extracted_project/* .
-          rm -rf extracted_project CustomGameplayWorldDynamics-Forge-1.20.1.zip
+          unzip CustomGameplayWorldDynamics-Forge-1.20.1.zip -d temp_zip
+          # Move files from nested folder if present
+          if [ -d temp_zip/CustomGameplayWorldDynamics-Forge-1.20.1 ]; then
+            cp -r temp_zip/CustomGameplayWorldDynamics-Forge-1.20.1/* .
+          else
+            cp -r temp_zip/* .
+          fi
+          rm -rf temp_zip
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build
+        run: ./gradlew build --no-daemon
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: minecraft-mod-jar
           path: build/libs/*.jar
-
