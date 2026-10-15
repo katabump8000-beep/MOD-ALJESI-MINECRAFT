@@ -15,20 +15,47 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Extract Project ZIP
+      - name: Extract All Files and Flatten Structure
         run: |
-          unzip -o *.zip -d project_extracted
-          # البحث عن مكان build.gradle والانتقال إليه
-          BUILD_FILE=$(find project_extracted -name "build.gradle" | head -n 1)
-          if [ -n "$BUILD_FILE" ]; then
-            DIR_PATH=$(dirname "$BUILD_FILE")
-            echo "Project directory found at: $DIR_PATH"
-            cp -r "$DIR_PATH"/* .
+          echo "=== الملفات الموجودة في الجذر ==="
+          ls -la
+          
+          # فك ضغط جميع ملفات الـ ZIP الموجودة في المستودع
+          for zipfile in *.zip; do
+            if [ -f "$zipfile" ]; then
+              echo "جاري فك ضغط: $zipfile"
+              unzip -o "$zipfile" -d extracted_temp
+            fi
+          done
+          
+          # نقل جميع الملفات والمجلدات إلى الجذر الرئيسي للمستودع
+          if [ -d "extracted_temp" ]; then
+            BUILD_PATH=$(find extracted_temp -name "build.gradle" -exec dirname {} \; | head -n 1)
+            if [ -n "$BUILD_PATH" ]; then
+              echo "تم العثور على مجلد المشروع في: $BUILD_PATH"
+              shopt -s dotglob
+              cp -r "$BUILD_PATH"/* .
+              shopt -u dotglob
+            else
+              cp -r extracted_temp/* .
+            fi
+            rm -rf extracted_temp
           fi
-          rm -rf project_extracted
+          
+          echo "=== الملفات بعد الفك والتنظيم ==="
+          ls -la
 
-      - name: Build with Installed Gradle
-        run: gradle build --no-daemon
+      - name: Grant execute permission for gradlew
+        run: |
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            echo "تم منح صلاحيات التنفيذ لـ gradlew بنجاح"
+          else
+            echo "تحذير: لم يتم العثور على gradlew"
+          fi
+
+      - name: Build with Project Gradle Wrapper
+        run: ./gradlew build --no-daemon
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
