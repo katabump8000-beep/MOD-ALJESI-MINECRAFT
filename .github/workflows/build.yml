@@ -15,29 +15,20 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Extract Project ZIP Dynamically
+      - name: Extract Project ZIP
         run: |
-          unzip *.zip -d temp_zip
-          PROJECT_DIR=$(find temp_zip -name "build.gradle" -exec dirname {} \;)
-          if [ -n "$PROJECT_DIR" ]; then
-            shopt -s dotglob
-            cp -r "$PROJECT_DIR"/* .
-            shopt -u dotglob
-            echo "تم استخراج ونقل ملفات المشروع بنجاح"
-          else
-            echo "خطأ: لم يتم العثور على ملف build.gradle داخل ملف الـ ZIP"
-            exit 1
+          unzip -o *.zip -d project_extracted
+          # البحث عن مكان build.gradle والانتقال إليه
+          BUILD_FILE=$(find project_extracted -name "build.gradle" | head -n 1)
+          if [ -n "$BUILD_FILE" ]; then
+            DIR_PATH=$(dirname "$BUILD_FILE")
+            echo "Project directory found at: $DIR_PATH"
+            cp -r "$DIR_PATH"/* .
           fi
-          rm -rf temp_zip
+          rm -rf project_extracted
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build with Gradle
-        run: ./gradlew build --no-daemon
+      - name: Build with Installed Gradle
+        run: gradle build --no-daemon
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
