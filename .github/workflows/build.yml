@@ -15,14 +15,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Extract Project ZIP
+      - name: Extract Project ZIP Dynamically
         run: |
-          unzip CustomGameplayWorldDynamics-Forge-1.20.1.zip -d temp_zip
-          # Move files from nested folder if present
-          if [ -d temp_zip/CustomGameplayWorldDynamics-Forge-1.20.1 ]; then
-            cp -r temp_zip/CustomGameplayWorldDynamics-Forge-1.20.1/* .
+          unzip *.zip -d temp_zip
+          PROJECT_DIR=$(find temp_zip -name "build.gradle" -exec dirname {} \;)
+          if [ -n "$PROJECT_DIR" ]; then
+            shopt -s dotglob
+            cp -r "$PROJECT_DIR"/* .
+            shopt -u dotglob
+            echo "تم استخراج ونقل ملفات المشروع بنجاح"
           else
-            cp -r temp_zip/* .
+            echo "خطأ: لم يتم العثور على ملف build.gradle داخل ملف الـ ZIP"
+            exit 1
           fi
           rm -rf temp_zip
 
